@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>חוקר פונקציות ריבועיות</title>
+<style>
+  :root {
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --border: rgba(11,11,11,0.10);
+    --surface-1: #fcfcfb;
+    --surface-2: #ffffff;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --border: rgba(255,255,255,0.10);
+      --surface-1: #1a1a19;
+      --surface-2: #232322;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    line-height: 1.6;
+  }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 1.5rem; }
+  input[type="range"] { accent-color: #2a78d6; }
+  button {
+    border: 0.5px solid rgba(11,11,11,0.2);
+    background: transparent;
+    color: var(--text-primary);
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: var(--surface-2); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<h1>חוקר פונקציות ריבועיות</h1>
+
+<div id="funcsList"></div>
+<button id="addBtn">+ הוסף פונקציה</button>
+
+<div style="display: flex; flex-wrap: wrap; gap: 14px; margin: 1rem 0 0.75rem; font-size: 13px;" id="legendOut"></div>
+
+<div style="position: relative; width: 100%; height: 340px;">
+  <canvas id="multiChart" role="img" aria-label="גרף המציג מספר פונקציות ריבועיות יחד">גרפים של פונקציות ריבועיות</canvas>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#4a3aa7'];
+const NAMES = ['f', 'g', 'h', 'p', 'q', 'r'];
+
+let funcs = [
+  { a: 2, b: -3, c: 0 }
+];
+
+function computePoints(a, b, c) {
+  const pts = [];
+  for (let x = -10; x <= 10; x += 0.1) {
+    const xr = Math.round(x*100)/100;
+    pts.push({ x: xr, y: Math.round((a*xr*xr + b*xr + c)*100)/100 });
+  }
+  return pts;
+}
+
+function formatTerm(coef, symbol, isFirst) {
+  if (coef === 0) return '';
+  const sign = coef < 0 ? ' - ' : (isFirst ? '' : ' + ');
+  const abs = Math.abs(coef);
+  const num = (abs === 1 && symbol) ? '' : abs.toString();
+  return sign + num + symbol;
+}
+
+function formula(f) {
+  let s = formatTerm(f.a, 'x²', true) || '0';
+  s += formatTerm(f.b, 'x', s === '');
+  s += formatTerm(f.c, '', s === '');
+  return s || '0';
+}
+
+const quadrantsPlugin = {
+  id: 'quadrantsPlugin',
+  beforeDraw(chart) {
+    const {ctx, chartArea} = chart;
+    ctx.save();
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#c3c2b7';
+    ctx.fillText('I', chartArea.right - 14, chartArea.top + 16);
+    ctx.fillText('II', chartArea.left + 6, chartArea.top + 16);
+    ctx.fillText('III', chartArea.left + 6, chartArea.bottom - 8);
+    ctx.fillText('IV', chartArea.right - 20, chartArea.bottom - 8);
+    ctx.restore();
+  },
+  afterDraw(chart) {
+    const {ctx, chartArea, scales} = chart;
+    const xZero = scales.x.getPixelForValue(0);
+    const yZero = scales.y.getPixelForValue(0);
+    ctx.save();
+    ctx.strokeStyle = '#898781';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, yZero);
+    ctx.lineTo(chartArea.right, yZero);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(xZero, chartArea.top);
+    ctx.lineTo(xZero, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+const chart = new Chart(document.getElementById('multiChart'), {
+  type: 'line',
+  data: { datasets: [] },
+  plugins: [quadrantsPlugin],
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    parsing: false,
+    animation: { duration: 150 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { type: 'linear', min: -10, max: 10, title: { display: true, text: 'x' }, grid: { color: '#e1e0d9' } },
+      y: { type: 'linear', min: -5, max: 5, title: { display: true, text: 'f(x)' }, grid: { color: '#e1e0d9' } }
+    }
+  }
+});
+
+function renderList() {
+  const list = document.getElementById('funcsList');
+  list.innerHTML = '';
+  funcs.forEach((f, i) => {
+    const name = NAMES[i] || ('f' + i);
+    const color = COLORS[i % COLORS.length];
+    const row = document.createElement('div');
+    row.style.cssText = 'border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0.75rem 1rem; margin-bottom: 0.75rem;';
+    row.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-weight:500; display:flex; align-items:center; gap:6px;">
+          <span style="width:10px;height:10px;border-radius:2px;background:${color};display:inline-block;"></span>
+          ${name}(x) = <span data-formula>${formula(f)}</span>
+        </span>
+        ${funcs.length > 1 ? '<button data-remove style="border:none;background:none;color:var(--text-muted);cursor:pointer;padding:4px;">✕</button>' : ''}
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">a</label>
+        <input type="range" min="-3" max="3" step="0.25" value="${f.a}" data-param="a" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="a">${f.a}</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">b</label>
+        <input type="range" min="-6" max="6" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="b">${f.b}</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">c</label>
+        <input type="range" min="-5" max="5" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="c">${f.c}</span>
+      </div>
+    `;
+    row.querySelectorAll('input[data-param]').forEach(inp => {
+      inp.addEventListener('input', (e) => {
+        const param = e.target.getAttribute('data-param');
+        funcs[i][param] = parseFloat(e.target.value);
+        row.querySelector(`[data-out="${param}"]`).textContent = funcs[i][param];
+        row.querySelector('[data-formula]').textContent = formula(funcs[i]);
+        updateChart();
+      });
+    });
+    const removeBtn = row.querySelector('[data-remove]');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        funcs.splice(i, 1);
+        renderList();
+        updateChart();
+      });
+    }
+    list.appendChild(row);
+  });
+  document.getElementById('addBtn').disabled = funcs.length >= NAMES.length;
+}
+
+function updateChart() {
+  chart.data.datasets = funcs.map((f, i) => ({
+    label: NAMES[i] || ('f'+i),
+    data: computePoints(f.a, f.b, f.c),
+    borderColor: COLORS[i % COLORS.length],
+    backgroundColor: 'transparent',
+    fill: false,
+    pointRadius: 0,
+    borderWidth: 2,
+    tension: 0.3
+  }));
+  chart.update();
+
+  const legend = document.getElementById('legendOut');
+  legend.innerHTML = funcs.map((f, i) => `
+    <span style="display:flex; align-items:center; gap:4px; color:var(--text-secondary);">
+      <span style="width:10px;height:10px;border-radius:2px;background:${COLORS[i % COLORS.length]};display:inline-block;"></span>
+      ${NAMES[i]}(x) = ${formula(f)}
+    </span>
+  `).join('');
+}
+
+document.getElementById('addBtn').addEventListener('click', () => {
+  if (funcs.length >= NAMES.length) return;
+  const last = funcs[funcs.length - 1];
+  funcs.push({ a: last.a, b: last.b + 1, c: last.c });
+  renderList();
+  updateChart();
+});
+
+renderList();
+updateChart();
+</script>
+
+</body>
+</html>
