@@ -159,7 +159,7 @@ const chart = new Chart(document.getElementById('multiChart'), {
     plugins: { legend: { display: false } },
     scales: {
       x: { type: 'linear', min: -10, max: 10, title: { display: true, text: 'x' }, grid: { color: '#e1e0d9' } },
-      y: { type: 'linear', min: -5, max: 5, title: { display: true, text: 'f(x)' }, grid: { color: '#e1e0d9' } }
+      y: { type: 'linear', min: -10, max: 10, title: { display: true, text: 'f(x)' }, grid: { color: '#e1e0d9' } }
     }
   }
 });
@@ -168,28 +168,28 @@ function paramsHtmlFor(f) {
   return f.type === 'vertex' ? `
     <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">k</label>
-      <input type="range" min="-6" max="6" step="0.5" value="${f.k}" data-param="k" style="flex:1;" />
+      <input type="range" min="-10" max="10" step="0.5" value="${f.k}" data-param="k" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="k">${f.k}</span>
     </div>
     <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">C</label>
-      <input type="range" min="-5" max="5" step="0.5" value="${f.vc}" data-param="vc" style="flex:1;" />
+      <input type="range" min="-10" max="10" step="0.5" value="${f.vc}" data-param="vc" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="vc">${f.vc}</span>
     </div>
   ` : `
     <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">a</label>
-      <input type="range" min="-3" max="3" step="0.25" value="${f.a}" data-param="a" style="flex:1;" />
+      <input type="range" min="-10" max="10" step="0.25" value="${f.a}" data-param="a" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="a">${f.a}</span>
     </div>
     <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">b</label>
-      <input type="range" min="-6" max="6" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
+      <input type="range" min="-10" max="10" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="b">${f.b}</span>
     </div>
     <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">c</label>
-      <input type="range" min="-5" max="5" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
+      <input type="range" min="-10" max="10" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="c">${f.c}</span>
     </div>
   `;
