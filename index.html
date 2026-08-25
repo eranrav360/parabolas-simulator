@@ -36,6 +36,14 @@
   }
   h1 { font-size: 22px; font-weight: 500; margin-bottom: 1.5rem; }
   input[type="range"] { accent-color: #2a78d6; }
+  select {
+    font-size: 12px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text-primary);
+    padding: 3px 6px;
+  }
   button {
     border: 0.5px solid rgba(11,11,11,0.2);
     background: transparent;
@@ -68,14 +76,21 @@ const COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#4a3aa7'
 const NAMES = ['f', 'g', 'h', 'p', 'q', 'r'];
 
 let funcs = [
-  { a: 2, b: -3, c: 0 }
+  { type: 'standard', a: 2, b: -3, c: 0, k: 2, vc: 1 }
 ];
 
-function computePoints(a, b, c) {
+function evalFunc(f, x) {
+  if (f.type === 'vertex') {
+    return (x - f.k) * (x - f.k) - f.vc;
+  }
+  return f.a * x * x + f.b * x + f.c;
+}
+
+function computePoints(f) {
   const pts = [];
   for (let x = -10; x <= 10; x += 0.1) {
     const xr = Math.round(x*100)/100;
-    pts.push({ x: xr, y: Math.round((a*xr*xr + b*xr + c)*100)/100 });
+    pts.push({ x: xr, y: Math.round(evalFunc(f, xr)*100)/100 });
   }
   return pts;
 }
@@ -89,6 +104,11 @@ function formatTerm(coef, symbol, isFirst) {
 }
 
 function formula(f) {
+  if (f.type === 'vertex') {
+    const kSign = f.k < 0 ? ' + ' + Math.abs(f.k) : ' - ' + f.k;
+    const cSign = f.vc < 0 ? ' + ' + Math.abs(f.vc) : ' - ' + f.vc;
+    return '(x' + kSign + ')²' + cSign;
+  }
   let s = formatTerm(f.a, 'x²', true) || '0';
   s += formatTerm(f.b, 'x', s === '');
   s += formatTerm(f.c, '', s === '');
@@ -144,6 +164,37 @@ const chart = new Chart(document.getElementById('multiChart'), {
   }
 });
 
+function paramsHtmlFor(f) {
+  return f.type === 'vertex' ? `
+    <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">k</label>
+      <input type="range" min="-6" max="6" step="0.5" value="${f.k}" data-param="k" style="flex:1;" />
+      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="k">${f.k}</span>
+    </div>
+    <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
+      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">C</label>
+      <input type="range" min="-5" max="5" step="0.5" value="${f.vc}" data-param="vc" style="flex:1;" />
+      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="vc">${f.vc}</span>
+    </div>
+  ` : `
+    <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">a</label>
+      <input type="range" min="-3" max="3" step="0.25" value="${f.a}" data-param="a" style="flex:1;" />
+      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="a">${f.a}</span>
+    </div>
+    <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">b</label>
+      <input type="range" min="-6" max="6" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
+      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="b">${f.b}</span>
+    </div>
+    <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
+      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">c</label>
+      <input type="range" min="-5" max="5" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
+      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="c">${f.c}</span>
+    </div>
+  `;
+}
+
 function renderList() {
   const list = document.getElementById('funcsList');
   list.innerHTML = '';
@@ -152,39 +203,45 @@ function renderList() {
     const color = COLORS[i % COLORS.length];
     const row = document.createElement('div');
     row.style.cssText = 'border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0.75rem 1rem; margin-bottom: 0.75rem;';
+
     row.innerHTML = `
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-        <span style="font-weight:500; display:flex; align-items:center; gap:6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; flex-wrap:wrap;">
+        <span dir="ltr" style="font-weight:500; display:flex; align-items:center; gap:6px;">
           <span style="width:10px;height:10px;border-radius:2px;background:${color};display:inline-block;"></span>
           ${name}(x) = <span data-formula>${formula(f)}</span>
         </span>
-        ${funcs.length > 1 ? '<button data-remove style="border:none;background:none;color:var(--text-muted);cursor:pointer;padding:4px;">✕</button>' : ''}
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select data-type-select>
+            <option value="standard" ${f.type === 'standard' ? 'selected' : ''}>ax²+bx+c</option>
+            <option value="vertex" ${f.type === 'vertex' ? 'selected' : ''}>(x-k)²-C</option>
+          </select>
+          ${funcs.length > 1 ? '<button data-remove style="border:none;background:none;color:var(--text-muted);cursor:pointer;padding:4px;">✕</button>' : ''}
+        </div>
       </div>
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">a</label>
-        <input type="range" min="-3" max="3" step="0.25" value="${f.a}" data-param="a" style="flex:1;" />
-        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="a">${f.a}</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">b</label>
-        <input type="range" min="-6" max="6" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
-        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="b">${f.b}</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">c</label>
-        <input type="range" min="-5" max="5" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
-        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="c">${f.c}</span>
-      </div>
+      <div data-params-container>${paramsHtmlFor(f)}</div>
     `;
-    row.querySelectorAll('input[data-param]').forEach(inp => {
-      inp.addEventListener('input', (e) => {
-        const param = e.target.getAttribute('data-param');
-        funcs[i][param] = parseFloat(e.target.value);
-        row.querySelector(`[data-out="${param}"]`).textContent = funcs[i][param];
-        row.querySelector('[data-formula]').textContent = formula(funcs[i]);
-        updateChart();
+
+    function attachParamListeners() {
+      row.querySelectorAll('[data-param]').forEach(inp => {
+        inp.addEventListener('input', (e) => {
+          const param = e.target.getAttribute('data-param');
+          funcs[i][param] = parseFloat(e.target.value);
+          row.querySelector(`[data-out="${param}"]`).textContent = funcs[i][param];
+          row.querySelector('[data-formula]').textContent = formula(funcs[i]);
+          updateChart();
+        });
       });
+    }
+    attachParamListeners();
+
+    row.querySelector('[data-type-select]').addEventListener('change', (e) => {
+      funcs[i].type = e.target.value;
+      row.querySelector('[data-params-container]').innerHTML = paramsHtmlFor(funcs[i]);
+      row.querySelector('[data-formula]').textContent = formula(funcs[i]);
+      attachParamListeners();
+      updateChart();
     });
+
     const removeBtn = row.querySelector('[data-remove]');
     if (removeBtn) {
       removeBtn.addEventListener('click', () => {
@@ -201,7 +258,7 @@ function renderList() {
 function updateChart() {
   chart.data.datasets = funcs.map((f, i) => ({
     label: NAMES[i] || ('f'+i),
-    data: computePoints(f.a, f.b, f.c),
+    data: computePoints(f),
     borderColor: COLORS[i % COLORS.length],
     backgroundColor: 'transparent',
     fill: false,
@@ -213,7 +270,7 @@ function updateChart() {
 
   const legend = document.getElementById('legendOut');
   legend.innerHTML = funcs.map((f, i) => `
-    <span style="display:flex; align-items:center; gap:4px; color:var(--text-secondary);">
+    <span dir="ltr" style="display:flex; align-items:center; gap:4px; color:var(--text-secondary);">
       <span style="width:10px;height:10px;border-radius:2px;background:${COLORS[i % COLORS.length]};display:inline-block;"></span>
       ${NAMES[i]}(x) = ${formula(f)}
     </span>
@@ -223,7 +280,7 @@ function updateChart() {
 document.getElementById('addBtn').addEventListener('click', () => {
   if (funcs.length >= NAMES.length) return;
   const last = funcs[funcs.length - 1];
-  funcs.push({ a: last.a, b: last.b + 1, c: last.c });
+  funcs.push({ type: 'standard', a: last.a || 1, b: (last.b || 0) + 1, c: last.c || 0, k: (last.k || 0) + 1, vc: last.vc || 0 });
   renderList();
   updateChart();
 });
