@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>חוקר פונקציות ריבועיות</title>
+<title>חוקר פונקציות</title>
 <style>
   :root {
     --text-primary: #0b0b0b;
@@ -59,7 +59,7 @@
 </head>
 <body>
 
-<h1>חוקר פונקציות ריבועיות</h1>
+<h1>חוקר פונקציות</h1>
 
 <div id="funcsList"></div>
 <button id="addBtn">+ הוסף פונקציה</button>
@@ -67,28 +67,45 @@
 <div style="display: flex; flex-wrap: wrap; gap: 14px; margin: 1rem 0 0.75rem; font-size: 13px;" id="legendOut"></div>
 
 <div style="position: relative; width: 100%; height: 340px;">
-  <canvas id="multiChart" role="img" aria-label="גרף המציג מספר פונקציות ריבועיות יחד">גרפים של פונקציות ריבועיות</canvas>
+  <canvas id="multiChart" role="img" aria-label="גרף המציג פונקציות עם כלי שרטוט, בטווח 20 יחידות בכל רביע">גרפים של פונקציות עם כלי שרטוט</canvas>
+</div>
+
+<div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 0.5px solid var(--border);">
+  <div style="font-weight:500; margin-bottom: 6px;">כלי שרטוט</div>
+  <div style="font-size:12px; color: var(--text-muted); margin-bottom: 8px;">הפעל מצב שרטוט ואז לחץ על הגרף כדי להוסיף נקודות. נקודות רצופות מתחברות אוטומטית בקו.</div>
+  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 10px;">
+    <button id="toggleDrawBtn">מצב שרטוט: כבוי</button>
+    <button id="newShapeBtn">צורה חדשה</button>
+    <button id="closePolyBtn">סגור מצולע</button>
+    <button id="undoBtn">בטל נקודה אחרונה</button>
+    <button id="clearDrawBtn">נקה שרטוט</button>
+  </div>
+  <div id="pointsList"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#4a3aa7'];
 const NAMES = ['f', 'g', 'h', 'p', 'q', 'r'];
+const AXIS_RANGE = 20;
 
 let funcs = [
-  { type: 'standard', a: 2, b: -3, c: 0, k: 2, vc: 1 }
+  { type: 'standard', a: 2, b: -3, c: 0, k: 2, vc: 1, m: 1, n: 0 }
 ];
 
 function evalFunc(f, x) {
   if (f.type === 'vertex') {
     return (x - f.k) * (x - f.k) - f.vc;
   }
+  if (f.type === 'linear') {
+    return f.m * x + f.n;
+  }
   return f.a * x * x + f.b * x + f.c;
 }
 
 function computePoints(f) {
   const pts = [];
-  for (let x = -10; x <= 10; x += 0.1) {
+  for (let x = -AXIS_RANGE; x <= AXIS_RANGE; x += 0.1) {
     const xr = Math.round(x*100)/100;
     pts.push({ x: xr, y: Math.round(evalFunc(f, xr)*100)/100 });
   }
@@ -108,6 +125,11 @@ function formula(f) {
     const kSign = f.k < 0 ? ' + ' + Math.abs(f.k) : ' - ' + f.k;
     const cSign = f.vc < 0 ? ' + ' + Math.abs(f.vc) : ' - ' + f.vc;
     return '(x' + kSign + ')²' + cSign;
+  }
+  if (f.type === 'linear') {
+    let s = formatTerm(f.m, 'x', true) || '0';
+    s += formatTerm(f.n, '', s === '');
+    return s || '0';
   }
   let s = formatTerm(f.a, 'x²', true) || '0';
   s += formatTerm(f.b, 'x', s === '');
@@ -147,10 +169,55 @@ const quadrantsPlugin = {
   }
 };
 
+let drawMode = false;
+let drawPoints = [];
+let drawEdges = [];
+let currentChain = [];
+let pointIdCounter = 0;
+let labelCounter = 0;
+
+function nextLabel(idx) {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const primes = Math.floor(idx / 26);
+  const letter = letters[idx % 26];
+  return letter + "'".repeat(primes);
+}
+
+const drawingPlugin = {
+  id: 'drawingPlugin',
+  afterDatasetsDraw(chart) {
+    const {ctx, scales} = chart;
+    ctx.save();
+    ctx.strokeStyle = '#7a4fc9';
+    ctx.lineWidth = 2;
+    drawEdges.forEach(e => {
+      const p1 = drawPoints.find(p => p.id === e.a);
+      const p2 = drawPoints.find(p => p.id === e.b);
+      if (!p1 || !p2) return;
+      ctx.beginPath();
+      ctx.moveTo(scales.x.getPixelForValue(p1.x), scales.y.getPixelForValue(p1.y));
+      ctx.lineTo(scales.x.getPixelForValue(p2.x), scales.y.getPixelForValue(p2.y));
+      ctx.stroke();
+    });
+    drawPoints.forEach(p => {
+      const px = scales.x.getPixelForValue(p.x);
+      const py = scales.y.getPixelForValue(p.y);
+      ctx.beginPath();
+      ctx.fillStyle = '#7a4fc9';
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0b0b0b';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(p.label, px + 7, py - 7);
+    });
+    ctx.restore();
+  }
+};
+
 const chart = new Chart(document.getElementById('multiChart'), {
   type: 'line',
   data: { datasets: [] },
-  plugins: [quadrantsPlugin],
+  plugins: [quadrantsPlugin, drawingPlugin],
   options: {
     responsive: true,
     maintainAspectRatio: false,
@@ -158,25 +225,42 @@ const chart = new Chart(document.getElementById('multiChart'), {
     animation: { duration: 150 },
     plugins: { legend: { display: false } },
     scales: {
-      x: { type: 'linear', min: -10, max: 10, title: { display: true, text: 'x' }, grid: { color: '#e1e0d9' } },
-      y: { type: 'linear', min: -10, max: 10, title: { display: true, text: 'f(x)' }, grid: { color: '#e1e0d9' } }
+      x: { type: 'linear', min: -AXIS_RANGE, max: AXIS_RANGE, title: { display: true, text: 'x' }, grid: { color: '#e1e0d9' } },
+      y: { type: 'linear', min: -AXIS_RANGE, max: AXIS_RANGE, title: { display: true, text: 'f(x)' }, grid: { color: '#e1e0d9' } }
     }
   }
 });
 
 function paramsHtmlFor(f) {
-  return f.type === 'vertex' ? `
-    <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">k</label>
-      <input type="range" min="-10" max="10" step="0.5" value="${f.k}" data-param="k" style="flex:1;" />
-      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="k">${f.k}</span>
-    </div>
-    <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
-      <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">C</label>
-      <input type="range" min="-10" max="10" step="0.5" value="${f.vc}" data-param="vc" style="flex:1;" />
-      <span style="font-size:13px; min-width:32px; text-align:right;" data-out="vc">${f.vc}</span>
-    </div>
-  ` : `
+  if (f.type === 'vertex') {
+    return `
+      <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">k</label>
+        <input type="range" min="-20" max="20" step="0.5" value="${f.k}" data-param="k" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="k">${f.k}</span>
+      </div>
+      <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">C</label>
+        <input type="range" min="-20" max="20" step="0.5" value="${f.vc}" data-param="vc" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="vc">${f.vc}</span>
+      </div>
+    `;
+  }
+  if (f.type === 'linear') {
+    return `
+      <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">m</label>
+        <input type="range" min="-20" max="20" step="0.25" value="${f.m}" data-param="m" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="m">${f.m}</span>
+      </div>
+      <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
+        <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">n</label>
+        <input type="range" min="-20" max="20" step="0.5" value="${f.n}" data-param="n" style="flex:1;" />
+        <span style="font-size:13px; min-width:32px; text-align:right;" data-out="n">${f.n}</span>
+      </div>
+    `;
+  }
+  return `
     <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">a</label>
       <input type="range" min="-10" max="10" step="0.25" value="${f.a}" data-param="a" style="flex:1;" />
@@ -184,12 +268,12 @@ function paramsHtmlFor(f) {
     </div>
     <div dir="ltr" style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">b</label>
-      <input type="range" min="-10" max="10" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
+      <input type="range" min="-20" max="20" step="0.5" value="${f.b}" data-param="b" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="b">${f.b}</span>
     </div>
     <div dir="ltr" style="display:flex; align-items:center; gap:10px;">
       <label style="font-size:13px; color:var(--text-secondary); min-width:16px;">c</label>
-      <input type="range" min="-10" max="10" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
+      <input type="range" min="-20" max="20" step="0.5" value="${f.c}" data-param="c" style="flex:1;" />
       <span style="font-size:13px; min-width:32px; text-align:right;" data-out="c">${f.c}</span>
     </div>
   `;
@@ -212,6 +296,7 @@ function renderList() {
         </span>
         <div style="display:flex; align-items:center; gap:8px;">
           <select data-type-select>
+            <option value="linear" ${f.type === 'linear' ? 'selected' : ''}>mx+n</option>
             <option value="standard" ${f.type === 'standard' ? 'selected' : ''}>ax²+bx+c</option>
             <option value="vertex" ${f.type === 'vertex' ? 'selected' : ''}>(x-k)²-C</option>
           </select>
@@ -280,13 +365,120 @@ function updateChart() {
 document.getElementById('addBtn').addEventListener('click', () => {
   if (funcs.length >= NAMES.length) return;
   const last = funcs[funcs.length - 1];
-  funcs.push({ type: 'standard', a: last.a || 1, b: (last.b || 0) + 1, c: last.c || 0, k: (last.k || 0) + 1, vc: last.vc || 0 });
+  funcs.push({ type: 'standard', a: last.a || 1, b: (last.b || 0) + 1, c: last.c || 0, k: (last.k || 0) + 1, vc: last.vc || 0, m: (last.m != null ? last.m : 1), n: (last.n != null ? last.n : 0) });
   renderList();
   updateChart();
 });
 
 renderList();
 updateChart();
+
+function addDrawPoint(x, y) {
+  const id = pointIdCounter++;
+  const label = nextLabel(labelCounter++);
+  drawPoints.push({ id, x, y, label });
+  if (currentChain.length > 0) {
+    drawEdges.push({ a: currentChain[currentChain.length - 1], b: id });
+  }
+  currentChain.push(id);
+  renderPointsList();
+  chart.update('none');
+}
+
+function renderPointsList() {
+  const container = document.getElementById('pointsList');
+  if (drawPoints.length === 0) {
+    container.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">אין עדיין נקודות בשרטוט.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  drawPoints.forEach((p) => {
+    const row = document.createElement('div');
+    row.dir = 'ltr';
+    row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px;';
+    row.innerHTML = `
+      <input data-label type="text" value="${p.label}" style="width:44px; border:0.5px solid var(--border); border-radius:6px; padding:3px 6px; background:transparent; color:var(--text-primary); text-align:center;" />
+      <span style="color:var(--text-muted);">x</span>
+      <input data-x type="number" step="0.5" value="${p.x}" style="width:60px; border:0.5px solid var(--border); border-radius:6px; padding:3px 6px; background:transparent; color:var(--text-primary);" />
+      <span style="color:var(--text-muted);">y</span>
+      <input data-y type="number" step="0.5" value="${p.y}" style="width:60px; border:0.5px solid var(--border); border-radius:6px; padding:3px 6px; background:transparent; color:var(--text-primary);" />
+      <button data-del style="border:none;background:none;color:var(--text-muted);cursor:pointer;padding:4px;">✕</button>
+    `;
+    row.querySelector('[data-label]').addEventListener('input', (e) => {
+      p.label = e.target.value || p.label;
+      chart.update('none');
+    });
+    row.querySelector('[data-x]').addEventListener('input', (e) => {
+      p.x = parseFloat(e.target.value) || 0;
+      chart.update('none');
+    });
+    row.querySelector('[data-y]').addEventListener('input', (e) => {
+      p.y = parseFloat(e.target.value) || 0;
+      chart.update('none');
+    });
+    row.querySelector('[data-del]').addEventListener('click', () => {
+      drawPoints = drawPoints.filter(pt => pt.id !== p.id);
+      drawEdges = drawEdges.filter(e => e.a !== p.id && e.b !== p.id);
+      currentChain = currentChain.filter(id => id !== p.id);
+      renderPointsList();
+      chart.update('none');
+    });
+    container.appendChild(row);
+  });
+}
+
+document.getElementById('toggleDrawBtn').addEventListener('click', (e) => {
+  drawMode = !drawMode;
+  e.target.textContent = drawMode ? 'מצב שרטוט: פעיל' : 'מצב שרטוט: כבוי';
+  e.target.style.borderColor = drawMode ? '#7a4fc9' : '';
+  e.target.style.color = drawMode ? '#7a4fc9' : '';
+  chart.canvas.style.cursor = drawMode ? 'crosshair' : 'default';
+});
+
+document.getElementById('newShapeBtn').addEventListener('click', () => {
+  currentChain = [];
+});
+
+document.getElementById('closePolyBtn').addEventListener('click', () => {
+  if (currentChain.length >= 3) {
+    drawEdges.push({ a: currentChain[currentChain.length - 1], b: currentChain[0] });
+    currentChain = [];
+    chart.update('none');
+  }
+});
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+  if (drawPoints.length === 0) return;
+  const removed = drawPoints[drawPoints.length - 1];
+  drawPoints = drawPoints.slice(0, -1);
+  drawEdges = drawEdges.filter(e => e.a !== removed.id && e.b !== removed.id);
+  currentChain = currentChain.filter(id => id !== removed.id);
+  renderPointsList();
+  chart.update('none');
+});
+
+document.getElementById('clearDrawBtn').addEventListener('click', () => {
+  drawPoints = [];
+  drawEdges = [];
+  currentChain = [];
+  renderPointsList();
+  chart.update('none');
+});
+
+chart.canvas.addEventListener('click', (evt) => {
+  if (!drawMode) return;
+  const rect = chart.canvas.getBoundingClientRect();
+  const pixelX = evt.clientX - rect.left;
+  const pixelY = evt.clientY - rect.top;
+  const xData = chart.scales.x.getValueForPixel(pixelX);
+  const yData = chart.scales.y.getValueForPixel(pixelY);
+  if (xData === undefined || yData === undefined) return;
+  const xs = Math.round(xData * 2) / 2;
+  const ys = Math.round(yData * 2) / 2;
+  addDrawPoint(xs, ys);
+});
+
+renderPointsList();
 </script>
 
 </body>
